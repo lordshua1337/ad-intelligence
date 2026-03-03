@@ -7,10 +7,10 @@ import { Shield, BarChart2, Search, Bell, FileText, Menu, X } from "lucide-react
 import { getAlertCount } from "@/lib/mock-data/index";
 
 const navLinks = [
-  { href: "/ad-intelligence/dashboard", label: "Dashboard", icon: BarChart2 },
-  { href: "/ad-intelligence/keywords", label: "Keywords", icon: Search },
-  { href: "/ad-intelligence/alerts", label: "Alerts", icon: Bell },
-  { href: "/ad-intelligence/briefs", label: "Briefs", icon: FileText },
+  { href: "/dashboard", label: "Dashboard", icon: BarChart2 },
+  { href: "/keywords", label: "Keywords", icon: Search },
+  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/briefs", label: "Briefs", icon: FileText },
 ];
 
 export function NavBar() {
@@ -19,8 +19,8 @@ export function NavBar() {
   const { unread } = getAlertCount();
 
   function isActive(href: string): boolean {
-    if (href === "/ad-intelligence/dashboard") {
-      return pathname.startsWith("/ad-intelligence/dashboard");
+    if (href === "/dashboard") {
+      return pathname.startsWith("/dashboard");
     }
     return pathname === href;
   }
@@ -31,7 +31,7 @@ export function NavBar() {
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link
-            href="/ad-intelligence"
+            href="/"
             className="flex items-center gap-2 text-[var(--text)] hover:opacity-80 transition-opacity"
           >
             <div className="w-7 h-7 rounded-lg bg-[var(--accent-soft)] border border-blue-500/30 flex items-center justify-center">

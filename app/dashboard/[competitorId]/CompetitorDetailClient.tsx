@@ -59,7 +59,7 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
     <div className="flex flex-col gap-6">
       {/* Back navigation */}
       <Link
-        href="/ad-intelligence/dashboard"
+        href="/dashboard"
         className="flex items-center gap-2 text-sm w-fit transition-colors"
         style={{ color: "var(--text-secondary)" }}
       >

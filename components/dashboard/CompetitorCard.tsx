@@ -17,7 +17,7 @@ function TrendColor(score: number): string {
 
 export function CompetitorCard({ competitor }: CompetitorCardProps) {
   return (
-    <Link href={`/ad-intelligence/dashboard/${competitor.id}`}>
+    <Link href={`/dashboard/${competitor.id}`}>
       <div className="card card-hover p-5 cursor-pointer h-full flex flex-col gap-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">

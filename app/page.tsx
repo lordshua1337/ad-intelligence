@@ -60,7 +60,7 @@ export default function Home() {
             </span>
           </div>
           <Link
-            href="/ad-intelligence/dashboard"
+            href="/dashboard"
             className="hidden sm:flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
             style={{
               background: "var(--accent-soft)",
@@ -132,7 +132,7 @@ export default function Home() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
               <Link
-                href="/ad-intelligence/dashboard"
+                href="/dashboard"
                 className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
                 style={{
                   background: "linear-gradient(135deg, #3B82F6, #6366F1)",
@@ -143,7 +143,7 @@ export default function Home() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/ad-intelligence/dashboard"
+                href="/dashboard"
                 className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-[var(--surface-hover)]"
                 style={{
                   color: "var(--text-secondary)",
