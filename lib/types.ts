@@ -1,3 +1,5 @@
+import type { EnrichmentData } from "./enrichment-types";
+
 export interface Competitor {
   readonly id: string;
   readonly domain: string;
@@ -9,6 +11,8 @@ export interface Competitor {
   readonly firstSeenAt: string;
   readonly lastUpdatedAt: string;
   readonly trendScore: number;
+  readonly enrichment?: EnrichmentData;
+  readonly enrichmentStatus?: "pending" | "loading" | "complete" | "error";
 }
 
 export interface Ad {
