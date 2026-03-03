@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Globe, TrendingUp, DollarSign, Layers } from "lucide-react";
+import { ArrowLeft, Globe, TrendingUp, DollarSign, Layers, ExternalLink, StickyNote, Plus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AdCard } from "@/components/dashboard/AdCard";
 import { ChannelMixChart } from "@/components/dashboard/ChannelMixChart";
@@ -14,9 +14,12 @@ import {
   formatBudget,
   formatRelativeTime,
 } from "@/lib/mock-data/index";
+import { INTEL_SOURCES, getFaviconUrl, getGoogleTrendsUrl } from "@/lib/intelligence-sources";
+import { getNotesForCompetitor, addNote, removeNote } from "@/lib/competitor-notes";
+import type { CompetitorNote } from "@/lib/competitor-notes";
 import type { Competitor, Ad } from "@/lib/types";
 
-const TABS = ["Overview", "Ad Library", "Analysis", "Timeline"] as const;
+const TABS = ["Live Intel", "Overview", "Ad Library", "Analysis", "Timeline"] as const;
 type Tab = (typeof TABS)[number];
 
 interface CompetitorDetailClientProps {
@@ -28,10 +31,28 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
   const analyses = getAnalysisForCompetitor(competitor.id);
   const channelMix = getChannelMix(competitor.id);
 
-  const [activeTab, setActiveTab] = useState<Tab>("Overview");
+  const [activeTab, setActiveTab] = useState<Tab>("Live Intel");
   const [sourceFilter, setSourceFilter] = useState<Ad["source"] | "all">("all");
   const [statusFilter, setStatusFilter] = useState<Ad["status"] | "all">("all");
   const [adSearch, setAdSearch] = useState("");
+  const [notes, setNotes] = useState<CompetitorNote[]>([]);
+  const [newNote, setNewNote] = useState("");
+
+  useEffect(() => {
+    setNotes(getNotesForCompetitor(competitor.id));
+  }, [competitor.id]);
+
+  function handleAddNote() {
+    if (!newNote.trim()) return;
+    addNote(competitor.id, newNote.trim());
+    setNotes(getNotesForCompetitor(competitor.id));
+    setNewNote("");
+  }
+
+  function handleRemoveNote(noteId: string) {
+    removeNote(noteId);
+    setNotes(getNotesForCompetitor(competitor.id));
+  }
 
   const filteredAds = useMemo(() => {
     return ads.filter((ad) => {
@@ -71,16 +92,15 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
       <div className="card p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0"
-              style={{
-                background: "var(--accent-soft)",
-                border: "1px solid rgba(59,130,246,0.2)",
-                color: "var(--accent)",
+            <img
+              src={getFaviconUrl(competitor.domain, 64)}
+              alt=""
+              className="w-12 h-12 rounded-xl flex-shrink-0"
+              onError={(e) => {
+                const el = e.target as HTMLImageElement;
+                el.style.display = "none";
               }}
-            >
-              {competitor.name[0]}
-            </div>
+            />
             <div>
               <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>
                 {competitor.name}
@@ -151,14 +171,14 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
 
       {/* Tabs */}
       <div
-        className="flex items-center gap-1 p-1 rounded-xl w-fit"
+        className="flex items-center gap-1 p-1 rounded-xl w-fit overflow-x-auto"
         style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
       >
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap"
             style={{
               background: activeTab === tab ? "var(--surface-hover)" : "transparent",
               color: activeTab === tab ? "var(--text)" : "var(--text-secondary)",
@@ -179,6 +199,137 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2 }}
         >
+          {activeTab === "Live Intel" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Intelligence Sources */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: "var(--text)" }}>
+                  <ExternalLink className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                  Real Ad Intelligence
+                </h3>
+                <p className="text-xs mb-4" style={{ color: "var(--text-dim)" }}>
+                  View real advertising data from public transparency tools.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {INTEL_SOURCES.map((source) => (
+                    <a
+                      key={source.id}
+                      href={source.buildUrl(competitor.domain)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 rounded-lg transition-all hover:scale-[1.01]"
+                      style={{
+                        background: source.bgColor,
+                        border: `1px solid ${source.borderColor}`,
+                      }}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: source.color }}>
+                          {source.name}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                          {source.description}
+                        </div>
+                      </div>
+                      <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: source.color }} />
+                    </a>
+                  ))}
+                  <a
+                    href={getGoogleTrendsUrl(competitor.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-lg transition-all hover:scale-[1.01]"
+                    style={{
+                      background: "rgba(66,133,244,0.1)",
+                      border: "1px solid rgba(66,133,244,0.25)",
+                    }}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: "#4285F4" }}>
+                        Google Trends
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                        Search interest for &ldquo;{competitor.name}&rdquo;
+                      </div>
+                    </div>
+                    <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: "#4285F4" }} />
+                  </a>
+                </div>
+              </div>
+
+              {/* Research Notes */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: "var(--text)" }}>
+                  <StickyNote className="w-4 h-4" style={{ color: "var(--warning)" }} />
+                  Research Notes
+                </h3>
+                <p className="text-xs mb-4" style={{ color: "var(--text-dim)" }}>
+                  Record your competitive research findings. Notes are saved locally.
+                </p>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddNote();
+                    }}
+                    placeholder="What did you find?"
+                    className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                    style={{
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                    }}
+                  />
+                  <button
+                    onClick={handleAddNote}
+                    disabled={!newNote.trim()}
+                    className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      background: newNote.trim() ? "var(--accent-soft)" : "var(--surface-hover)",
+                      color: newNote.trim() ? "var(--accent)" : "var(--text-dim)",
+                      border: `1px solid ${newNote.trim() ? "rgba(59,130,246,0.3)" : "var(--border)"}`,
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                {notes.length === 0 ? (
+                  <p className="text-xs py-6 text-center" style={{ color: "var(--text-dim)" }}>
+                    Use the intelligence links to research this competitor, then save your notes here.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+                    {notes.map((note) => (
+                      <div
+                        key={note.id}
+                        className="flex items-start gap-2 p-3 rounded-lg"
+                        style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                            {note.text}
+                          </p>
+                          <span className="text-[10px] mt-1 block" style={{ color: "var(--text-dim)" }}>
+                            {new Date(note.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveNote(note.id)}
+                          className="p-1 rounded transition-colors hover:bg-[rgba(239,68,68,0.15)] flex-shrink-0"
+                          style={{ color: "var(--text-dim)" }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === "Overview" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="card p-5">
@@ -275,7 +426,7 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
                 </div>
               </div>
               <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-                Showing {filteredAds.length} of {ads.length} ads
+                Showing {filteredAds.length} of {ads.length} sample ads
               </p>
               {filteredAds.length === 0 ? (
                 <div className="text-center py-12" style={{ color: "var(--text-dim)" }}>
@@ -301,7 +452,7 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
           {activeTab === "Analysis" && (
             <div className="flex flex-col gap-4">
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Pattern analysis based on {analyses.length} analyzed ads.
+                Pattern analysis based on {analyses.length} analyzed sample ads.
               </p>
               <PatternInsights analyses={analyses} />
             </div>
@@ -310,7 +461,7 @@ export function CompetitorDetailClient({ competitor }: CompetitorDetailClientPro
           {activeTab === "Timeline" && (
             <div className="flex flex-col gap-4">
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Ad activity history — showing when each ad was first and last seen.
+                Ad activity history -- showing when each ad was first and last seen.
               </p>
               <div className="flex flex-col gap-3">
                 {sortedByTime.map((ad, i) => (

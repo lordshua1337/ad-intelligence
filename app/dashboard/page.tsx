@@ -5,6 +5,7 @@ import { Search, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { CompetitorCard } from "@/components/dashboard/CompetitorCard";
 import { AddCompetitorModal } from "@/components/dashboard/AddCompetitorModal";
+import { CompetitorDetailModal } from "@/components/dashboard/CompetitorDetailModal";
 import { getCompetitors } from "@/lib/mock-data/index";
 import { getCustomCompetitors, saveCustomCompetitor, removeCustomCompetitor } from "@/lib/custom-competitors";
 import type { Competitor } from "@/lib/types";
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const [activeIndustry, setActiveIndustry] = useState("All");
   const [showModal, setShowModal] = useState(false);
+  const [detailCompetitor, setDetailCompetitor] = useState<Competitor | null>(null);
 
   useEffect(() => {
     setCustomCompetitors(getCustomCompetitors());
@@ -171,7 +173,10 @@ export default function DashboardPage() {
               transition={{ delay: i * 0.04, duration: 0.25 }}
               className="relative"
             >
-              <CompetitorCard competitor={competitor} />
+              <CompetitorCard
+                competitor={competitor}
+                onClick={isCustom(competitor.id) ? () => setDetailCompetitor(competitor) : undefined}
+              />
               {isCustom(competitor.id) && (
                 <button
                   onClick={(e) => {
@@ -195,6 +200,11 @@ export default function DashboardPage() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         onAdd={handleAddCompetitor}
+      />
+
+      <CompetitorDetailModal
+        competitor={detailCompetitor}
+        onClose={() => setDetailCompetitor(null)}
       />
     </div>
   );
