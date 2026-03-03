@@ -3,9 +3,9 @@ import { Eye, Search, Brain, ArrowRight, Shield } from "lucide-react";
 
 export default function Home() {
   const stats = [
-    { value: "12", label: "Competitors Tracked" },
-    { value: "85+", label: "Ads Analyzed" },
-    { value: "30", label: "Keywords Monitored" },
+    { value: "6", label: "Intelligence Sources" },
+    { value: "Free", label: "Real Ad Data" },
+    { value: "Any", label: "Company Lookup" },
   ];
 
   const features = [
@@ -106,7 +106,7 @@ export default function Home() {
               className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6"
               style={{ color: "var(--text)" }}
             >
-              See What Your Competitors
+              Look Up Any Company.
               <br />
               <span
                 style={{
@@ -116,7 +116,7 @@ export default function Home() {
                   backgroundClip: "text",
                 }}
               >
-                Are Spending Money On
+                See Their Real Ads.
               </span>
             </h1>
 
@@ -125,8 +125,8 @@ export default function Home() {
               className="text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              AI-powered ad intelligence that reveals competitor strategies, spending
-              patterns, and keyword opportunities across Google and Meta.
+              Search any company to instantly access their real ads on Meta, Google,
+              SpyFu, SimilarWeb, and more. Track competitors and build your intelligence file.
             </p>
 
             {/* CTAs */}

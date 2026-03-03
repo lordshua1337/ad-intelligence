@@ -1,206 +1,340 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Search, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
-import { motion } from "framer-motion";
-import { CompetitorCard } from "@/components/dashboard/CompetitorCard";
-import { AddCompetitorModal } from "@/components/dashboard/AddCompetitorModal";
+import { useState, useEffect } from "react";
+import { Search, Plus, Trash2, ExternalLink, Eye, Globe, ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { CompetitorDetailModal } from "@/components/dashboard/CompetitorDetailModal";
-import { getCompetitors } from "@/lib/mock-data/index";
-import { getCustomCompetitors, saveCustomCompetitor, removeCustomCompetitor } from "@/lib/custom-competitors";
+import { getCustomCompetitors, saveCustomCompetitor, removeCustomCompetitor, generateCompetitorId } from "@/lib/custom-competitors";
+import { INTEL_SOURCES, getFaviconUrl } from "@/lib/intelligence-sources";
 import type { Competitor } from "@/lib/types";
 
-const INDUSTRIES = ["All", "SaaS", "Fintech", "E-commerce", "Health"];
-
 export default function DashboardPage() {
-  const mockCompetitors = getCompetitors();
-  const [customCompetitors, setCustomCompetitors] = useState<Competitor[]>([]);
-  const [query, setQuery] = useState("");
-  const [activeIndustry, setActiveIndustry] = useState("All");
-  const [showModal, setShowModal] = useState(false);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [detailCompetitor, setDetailCompetitor] = useState<Competitor | null>(null);
+  const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
-    setCustomCompetitors(getCustomCompetitors());
+    setCompetitors(getCustomCompetitors());
   }, []);
 
-  const allCompetitors = useMemo(
-    () => [...mockCompetitors, ...customCompetitors],
-    [mockCompetitors, customCompetitors]
-  );
+  function handleTrack() {
+    const q = searchQuery.trim();
+    if (!q) return;
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return allCompetitors.filter((c) => {
-      const matchesQuery =
-        q === "" ||
-        c.name.toLowerCase().includes(q) ||
-        c.domain.toLowerCase().includes(q) ||
-        c.industry.toLowerCase().includes(q);
-      const matchesIndustry =
-        activeIndustry === "All" ||
-        c.industry.toLowerCase().includes(activeIndustry.toLowerCase());
-      return matchesQuery && matchesIndustry;
-    });
-  }, [allCompetitors, query, activeIndustry]);
+    // Determine if it looks like a domain or a company name
+    const isDomain = q.includes(".");
+    const domain = isDomain ? q.replace(/^https?:\/\//, "").replace(/\/$/, "") : `${q.toLowerCase().replace(/\s+/g, "")}.com`;
+    const name = isDomain ? q.split(".")[0].charAt(0).toUpperCase() + q.split(".")[0].slice(1) : q;
 
-  const totalBudget = allCompetitors.reduce((s, c) => s + c.monthlyBudgetEstimate, 0);
-  const totalAds = allCompetitors.reduce((s, c) => s + c.activeAdCount, 0);
+    const now = new Date().toISOString();
+    const competitor: Competitor = {
+      id: generateCompetitorId(),
+      name,
+      domain,
+      industry: "Unknown",
+      monthlyBudgetEstimate: 0,
+      activeAdCount: 0,
+      channels: ["google", "meta"],
+      firstSeenAt: now,
+      lastUpdatedAt: now,
+      trendScore: 0,
+    };
 
-  function formatBig(n: number): string {
-    if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `$${Math.round(n / 1000)}K`;
-    return `$${n}`;
-  }
-
-  function handleAddCompetitor(competitor: Competitor) {
     saveCustomCompetitor(competitor);
-    setCustomCompetitors(getCustomCompetitors());
+    setCompetitors(getCustomCompetitors());
+    setSearchQuery("");
+    setShowResults(false);
   }
 
-  function handleRemoveCompetitor(id: string) {
+  function handleRemove(id: string) {
     removeCustomCompetitor(id);
-    setCustomCompetitors(getCustomCompetitors());
+    setCompetitors(getCustomCompetitors());
   }
 
-  const isCustom = (id: string) => id.startsWith("custom-");
+  // Derive search domain for quick lookup
+  const searchDomain = searchQuery.trim().includes(".")
+    ? searchQuery.trim().replace(/^https?:\/\//, "").replace(/\/$/, "")
+    : searchQuery.trim().length > 0
+    ? `${searchQuery.trim().toLowerCase().replace(/\s+/g, "")}.com`
+    : "";
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-            Competitor Intelligence
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Tracking {allCompetitors.length} competitors across {totalAds} active ads
-          </p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, #3B82F6, #6366F1)",
-            color: "white",
-            boxShadow: "0 0 16px rgba(59,130,246,0.2)",
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Add Competitor
-        </button>
-      </div>
+    <div className="flex flex-col gap-8">
+      {/* Hero search */}
+      <div className="text-center pt-4">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: "var(--text)" }}>
+          Competitive Intelligence
+        </h1>
+        <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+          Look up any company to see their real ads, keywords, and traffic data.
+        </p>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Competitors", value: allCompetitors.length.toString(), color: "var(--accent)" },
-          { label: "Active Ads", value: totalAds.toString(), color: "var(--accent-violet)" },
-          { label: "Est. Monthly Spend", value: formatBig(totalBudget), color: "var(--success)" },
-          { label: "Channels", value: "3", color: "var(--warning)" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="card p-4">
-            <div className="text-xl font-bold mb-0.5" style={{ color }}>
-              {value}
-            </div>
-            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              {label}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Search and filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+        {/* Search bar */}
+        <div className="relative max-w-xl mx-auto">
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
             style={{ color: "var(--text-dim)" }}
           />
           <input
             type="text"
-            placeholder="Search competitors by name, domain, or industry..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-lg text-sm outline-none transition-colors"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowResults(e.target.value.trim().length > 0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && searchQuery.trim()) {
+                setShowResults(true);
+              }
+            }}
+            onFocus={() => {
+              if (searchQuery.trim()) setShowResults(true);
+            }}
+            placeholder="Search any company name or domain... (e.g. nike.com, Shopify)"
+            className="w-full pl-12 pr-4 py-4 rounded-xl text-base outline-none transition-all"
             style={{
               background: "var(--surface)",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--border-hover)",
               color: "var(--text)",
+              boxShadow: "0 0 30px rgba(59,130,246,0.08)",
             }}
           />
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <SlidersHorizontal className="w-4 h-4 flex-shrink-0" style={{ color: "var(--text-dim)" }} />
-          {INDUSTRIES.map((ind) => (
-            <button
-              key={ind}
-              onClick={() => setActiveIndustry(ind)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              style={{
-                background:
-                  activeIndustry === ind ? "var(--accent-soft)" : "var(--surface)",
-                color:
-                  activeIndustry === ind ? "var(--accent)" : "var(--text-secondary)",
-                border: `1px solid ${
-                  activeIndustry === ind
-                    ? "rgba(59,130,246,0.3)"
-                    : "var(--border)"
-                }`,
-              }}
+
+        {/* Quick lookup results */}
+        <AnimatePresence>
+          {showResults && searchQuery.trim().length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="max-w-xl mx-auto mt-3"
             >
-              {ind}
-            </button>
-          ))}
-        </div>
+              <div
+                className="rounded-xl overflow-hidden text-left"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-hover)",
+                  boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
+                }}
+              >
+                {/* Company preview */}
+                <div className="p-4 flex items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                  <img
+                    src={getFaviconUrl(searchDomain, 32)}
+                    alt=""
+                    className="w-8 h-8 rounded flex-shrink-0"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
+                      {searchQuery.trim()}
+                    </div>
+                    <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                      {searchDomain}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleTrack}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-[0.97] flex-shrink-0"
+                    style={{
+                      background: "linear-gradient(135deg, #3B82F6, #6366F1)",
+                      color: "white",
+                    }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Track
+                  </button>
+                </div>
+
+                {/* Quick intel links */}
+                <div className="p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: "var(--text-dim)" }}>
+                    Quick Lookup
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {INTEL_SOURCES.slice(0, 4).map((source) => (
+                      <a
+                        key={source.id}
+                        href={source.buildUrl(searchDomain)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all hover:scale-[1.01]"
+                        style={{
+                          background: source.bgColor,
+                          border: `1px solid ${source.borderColor}`,
+                        }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold" style={{ color: source.color }}>
+                            {source.name}
+                          </div>
+                          <div className="text-[10px] truncate" style={{ color: "var(--text-dim)" }}>
+                            {source.description}
+                          </div>
+                        </div>
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" style={{ color: source.color }} />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Competitors grid */}
-      {filtered.length === 0 ? (
-        <div
-          className="text-center py-16"
-          style={{ color: "var(--text-dim)" }}
-        >
-          No competitors match your search.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((competitor, i) => (
-            <motion.div
-              key={competitor.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.25 }}
-              className="relative"
-            >
-              <CompetitorCard
-                competitor={competitor}
-                onClick={isCustom(competitor.id) ? () => setDetailCompetitor(competitor) : undefined}
-              />
-              {isCustom(competitor.id) && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleRemoveCompetitor(competitor.id);
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg transition-colors z-10 hover:bg-[rgba(239,68,68,0.15)]"
-                  style={{ color: "var(--danger)" }}
-                  title="Remove competitor"
+      {/* Tracked competitors */}
+      {competitors.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: "var(--text)" }}>
+                Tracked Competitors
+              </h2>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
+                {competitors.length} competitor{competitors.length !== 1 ? "s" : ""} being monitored
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {competitors.map((comp, i) => (
+              <motion.div
+                key={comp.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04, duration: 0.25 }}
+              >
+                <div
+                  className="card card-hover p-5 cursor-pointer h-full flex flex-col gap-3"
+                  onClick={() => setDetailCompetitor(comp)}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </motion.div>
-          ))}
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <img
+                        src={getFaviconUrl(comp.domain, 32)}
+                        alt=""
+                        className="w-7 h-7 rounded flex-shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base leading-tight truncate" style={{ color: "var(--text)" }}>
+                          {comp.name}
+                        </h3>
+                        <span className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                          <Globe className="w-3 h-3" />
+                          {comp.domain}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(comp.id);
+                      }}
+                      className="p-1.5 rounded-lg transition-colors hover:bg-[rgba(239,68,68,0.15)] flex-shrink-0"
+                      style={{ color: "var(--text-dim)" }}
+                      title="Remove"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Quick intel buttons */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    <a
+                      href={`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=${encodeURIComponent(comp.domain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2 py-1 rounded text-[10px] font-semibold transition-colors"
+                      style={{ background: "rgba(139,92,246,0.1)", color: "#A78BFA", border: "1px solid rgba(139,92,246,0.2)" }}
+                    >
+                      Meta Ads
+                    </a>
+                    <a
+                      href={`https://adstransparency.google.com/?domain=${encodeURIComponent(comp.domain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2 py-1 rounded text-[10px] font-semibold transition-colors"
+                      style={{ background: "rgba(59,130,246,0.1)", color: "#60A5FA", border: "1px solid rgba(59,130,246,0.2)" }}
+                    >
+                      Google Ads
+                    </a>
+                    <a
+                      href={`https://www.spyfu.com/overview/domain?query=${encodeURIComponent(comp.domain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2 py-1 rounded text-[10px] font-semibold transition-colors"
+                      style={{ background: "rgba(245,158,11,0.1)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.2)" }}
+                    >
+                      SpyFu
+                    </a>
+                    <a
+                      href={`https://www.similarweb.com/website/${encodeURIComponent(comp.domain)}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2 py-1 rounded text-[10px] font-semibold transition-colors"
+                      style={{ background: "rgba(16,185,129,0.1)", color: "#10B981", border: "1px solid rgba(16,185,129,0.2)" }}
+                    >
+                      SimilarWeb
+                    </a>
+                  </div>
+
+                  {/* Channels */}
+                  <div className="flex items-center gap-1.5 mt-auto">
+                    {comp.channels.map((ch) => (
+                      <span
+                        key={ch}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                          ch === "google"
+                            ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                            : ch === "meta"
+                            ? "bg-violet-500/10 text-violet-400 border-violet-500/20"
+                            : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                        }`}
+                      >
+                        {ch.charAt(0).toUpperCase() + ch.slice(1)}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* View details hint */}
+                  <div className="flex items-center gap-1 text-xs" style={{ color: "var(--accent)" }}>
+                    <Eye className="w-3 h-3" />
+                    View full intelligence
+                    <ArrowRight className="w-3 h-3" />
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 
-      <AddCompetitorModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onAdd={handleAddCompetitor}
-      />
+      {/* Empty state */}
+      {competitors.length === 0 && !showResults && (
+        <div className="text-center py-12">
+          <Search className="w-10 h-10 mx-auto mb-3 opacity-20" style={{ color: "var(--text-dim)" }} />
+          <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+            No competitors tracked yet
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+            Search for a company above to start gathering competitive intelligence.
+          </p>
+        </div>
+      )}
 
       <CompetitorDetailModal
         competitor={detailCompetitor}
