@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Users,
   Tag,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAllBriefs, formatBudget } from "@/lib/mock-data/index";
@@ -22,6 +23,8 @@ export default function BriefsPage() {
   const [expandedSections, setExpandedSections] = useState<Record<string, Set<SectionKey>>>(
     () => ({ [briefs[0]?.id ?? ""]: new Set(["summary"]) })
   );
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
 
   function toggleSection(briefId: string, section: SectionKey) {
     setExpandedSections((prev) => {
@@ -67,15 +70,43 @@ export default function BriefsPage() {
             </p>
           </div>
           <button
+            onClick={() => {
+              if (generating || generated) return;
+              setGenerating(true);
+              setTimeout(() => {
+                setGenerating(false);
+                setGenerated(true);
+                setTimeout(() => setGenerated(false), 3000);
+              }, 2000);
+            }}
+            disabled={generating}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
             style={{
-              background: "linear-gradient(135deg, #3B82F6, #6366F1)",
-              color: "white",
-              boxShadow: "0 0 16px rgba(59,130,246,0.25)",
+              background: generated
+                ? "rgba(16,185,129,0.15)"
+                : "linear-gradient(135deg, #3B82F6, #6366F1)",
+              color: generated ? "var(--success)" : "white",
+              boxShadow: generated ? "none" : "0 0 16px rgba(59,130,246,0.25)",
+              border: generated ? "1px solid rgba(16,185,129,0.3)" : "none",
+              opacity: generating ? 0.7 : 1,
             }}
           >
-            <Sparkles className="w-4 h-4" />
-            Generate New Brief
+            {generating ? (
+              <>
+                <Sparkles className="w-4 h-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : generated ? (
+              <>
+                <Check className="w-4 h-4" />
+                Brief Generated
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate New Brief
+              </>
+            )}
           </button>
         </div>
 
