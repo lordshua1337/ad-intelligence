@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NavBar } from "@/components/nav/NavBar";
 import {
   FileText,
@@ -12,19 +12,125 @@ import {
   Users,
   Tag,
   Check,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getAllBriefs, formatBudget } from "@/lib/mock-data/index";
+
+const BRIEFS_STORAGE_KEY = "ad-intel-briefs";
 
 type SectionKey = "summary" | "takeaways" | "competitors" | "keywords" | "recommendations";
 
+interface StoredBrief {
+  id: string;
+  generatedAt: string;
+  summary: string;
+  keyTakeaways: string[];
+  topCompetitors: { name: string; spend: number; adCount: number }[];
+  trendingKeywords: string[];
+  recommendations: string[];
+}
+
+function loadBriefs(): StoredBrief[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(BRIEFS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveBriefs(briefs: StoredBrief[]): void {
+  localStorage.setItem(BRIEFS_STORAGE_KEY, JSON.stringify(briefs));
+}
+
+function formatBudget(amount: number): string {
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `$${Math.round(amount / 1000)}K`;
+  return `$${amount}`;
+}
+
 export default function BriefsPage() {
-  const briefs = getAllBriefs();
-  const [expandedSections, setExpandedSections] = useState<Record<string, Set<SectionKey>>>(
-    () => ({ [briefs[0]?.id ?? ""]: new Set(["summary"]) })
-  );
+  const [briefs, setBriefs] = useState<StoredBrief[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Record<string, Set<SectionKey>>>({});
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loaded = loadBriefs();
+    setBriefs(loaded);
+    if (loaded.length > 0) {
+      setExpandedSections({ [loaded[0].id]: new Set(["summary"]) });
+    }
+  }, []);
+
+  const generateBrief = useCallback(async () => {
+    setGenerating(true);
+    setError(null);
+
+    try {
+      // Get tracked competitors from localStorage
+      const raw = localStorage.getItem("ad-intel-custom-competitors");
+      const competitors = raw ? JSON.parse(raw) : [];
+
+      if (competitors.length === 0) {
+        setError("No tracked competitors. Go to the Dashboard and scan some domains first.");
+        setGenerating(false);
+        return;
+      }
+
+      // Build competitor data for the API
+      const competitorInputs = competitors
+        .filter((c: Record<string, unknown>) => c.enrichment)
+        .map((c: Record<string, unknown>) => {
+          const e = c.enrichment as Record<string, unknown>;
+          return {
+            name: c.name,
+            domain: c.domain,
+            techStack: ((e.techStack as Array<{ name: string }>) ?? []).map((t) => t.name),
+            adPixels: ((e.adPixels as Array<{ platform: string; detected: boolean }>) ?? [])
+              .filter((p) => p.detected)
+              .map((p) => p.platform),
+            analytics: ((e.analytics as Array<{ name: string; detected: boolean }>) ?? [])
+              .filter((a) => a.detected)
+              .map((a) => a.name),
+            performanceScore: (e.pageSpeed as Record<string, unknown>)?.performanceScore,
+            siteAge: (e.siteAge as Record<string, unknown>)?.firstSeen
+              ? String((e.siteAge as Record<string, unknown>).firstSeen).substring(0, 4)
+              : undefined,
+          };
+        });
+
+      if (competitorInputs.length === 0) {
+        setError("No enriched competitors. Scan your tracked domains on the Dashboard first.");
+        setGenerating(false);
+        return;
+      }
+
+      const res = await fetch("/api/briefs/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitors: competitorInputs }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Brief generation failed");
+      }
+
+      const newBrief: StoredBrief = await res.json();
+
+      // Prepend to existing briefs
+      const updated = [newBrief, ...briefs];
+      setBriefs(updated);
+      saveBriefs(updated);
+      setExpandedSections({ [newBrief.id]: new Set(["summary"]) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Brief generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  }, [briefs]);
 
   function toggleSection(briefId: string, section: SectionKey) {
     setExpandedSections((prev) => {
@@ -63,43 +169,26 @@ export default function BriefsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-              Weekly Competitive Briefs
+              Competitive Intelligence Briefs
             </h1>
             <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              AI-generated intelligence summaries for your competitive landscape
+              AI-generated intelligence summaries from your tracked competitors
             </p>
           </div>
           <button
-            onClick={() => {
-              if (generating || generated) return;
-              setGenerating(true);
-              setTimeout(() => {
-                setGenerating(false);
-                setGenerated(true);
-                setTimeout(() => setGenerated(false), 3000);
-              }, 2000);
-            }}
+            onClick={generateBrief}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-70"
             style={{
-              background: generated
-                ? "rgba(16,185,129,0.15)"
-                : "linear-gradient(135deg, #3B82F6, #6366F1)",
-              color: generated ? "var(--success)" : "white",
-              boxShadow: generated ? "none" : "0 0 16px rgba(59,130,246,0.25)",
-              border: generated ? "1px solid rgba(16,185,129,0.3)" : "none",
-              opacity: generating ? 0.7 : 1,
+              background: "linear-gradient(135deg, #3B82F6, #6366F1)",
+              color: "white",
+              boxShadow: "0 0 16px rgba(59,130,246,0.25)",
             }}
           >
             {generating ? (
               <>
-                <Sparkles className="w-4 h-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : generated ? (
-              <>
-                <Check className="w-4 h-4" />
-                Brief Generated
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating Brief...
               </>
             ) : (
               <>
@@ -109,6 +198,53 @@ export default function BriefsPage() {
             )}
           </button>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            className="p-4 rounded-lg text-sm"
+            style={{
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              color: "#EF4444",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {briefs.length === 0 && !generating && (
+          <div
+            className="text-center py-16 flex flex-col items-center gap-3"
+            style={{ color: "var(--text-dim)" }}
+          >
+            <FileText className="w-10 h-10 opacity-20" />
+            <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+              No briefs generated yet
+            </p>
+            <p className="text-xs">
+              Track competitors on the Dashboard, then click &quot;Generate New Brief&quot;
+              to create an AI-powered competitive intelligence summary.
+            </p>
+          </div>
+        )}
+
+        {/* Generating placeholder */}
+        {generating && briefs.length === 0 && (
+          <div className="card p-8 text-center">
+            <Loader2
+              className="w-8 h-8 animate-spin mx-auto mb-3"
+              style={{ color: "var(--accent)" }}
+            />
+            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+              Analyzing your competitors...
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+              Claude is generating a competitive intelligence brief from your tracked data
+            </p>
+          </div>
+        )}
 
         {/* Briefs */}
         {briefs.map((brief, briefIndex) => (
@@ -142,7 +278,8 @@ export default function BriefsPage() {
                     {briefIndex === 0 ? "Latest Brief" : "Previous Brief"}
                   </div>
                   <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    Generated {new Date(brief.generatedAt).toLocaleDateString("en-US", {
+                    Generated{" "}
+                    {new Date(brief.generatedAt).toLocaleDateString("en-US", {
                       weekday: "long",
                       year: "numeric",
                       month: "long",
@@ -151,18 +288,30 @@ export default function BriefsPage() {
                   </div>
                 </div>
               </div>
-              {briefIndex === 0 && (
+              <div className="flex items-center gap-2">
+                {briefIndex === 0 && (
+                  <span
+                    className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                    style={{
+                      background: "rgba(16,185,129,0.1)",
+                      color: "var(--success)",
+                      border: "1px solid rgba(16,185,129,0.2)",
+                    }}
+                  >
+                    Latest
+                  </span>
+                )}
                 <span
-                  className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                  className="px-2.5 py-1 rounded-full text-xs font-medium"
                   style={{
-                    background: "rgba(16,185,129,0.1)",
-                    color: "var(--success)",
-                    border: "1px solid rgba(16,185,129,0.2)",
+                    background: "rgba(59,130,246,0.1)",
+                    color: "var(--accent)",
+                    border: "1px solid rgba(59,130,246,0.2)",
                   }}
                 >
-                  Latest
+                  AI Generated
                 </span>
-              )}
+              </div>
             </div>
 
             {/* Sections */}
@@ -197,7 +346,10 @@ export default function BriefsPage() {
                       >
                         <div className="px-5 pb-5">
                           {key === "summary" && (
-                            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                            <p
+                              className="text-sm leading-relaxed"
+                              style={{ color: "var(--text-secondary)" }}
+                            >
                               {brief.summary}
                             </p>
                           )}
@@ -208,11 +360,18 @@ export default function BriefsPage() {
                                 <li key={i} className="flex items-start gap-2.5">
                                   <span
                                     className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5"
-                                    style={{ background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid rgba(59,130,246,0.2)" }}
+                                    style={{
+                                      background: "var(--accent-soft)",
+                                      color: "var(--accent)",
+                                      border: "1px solid rgba(59,130,246,0.2)",
+                                    }}
                                   >
                                     {i + 1}
                                   </span>
-                                  <span className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                                  <span
+                                    className="text-sm leading-relaxed"
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
                                     {takeaway}
                                   </span>
                                 </li>
@@ -229,25 +388,47 @@ export default function BriefsPage() {
                                   style={{ background: "var(--surface-hover)" }}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <span className="text-xs font-bold w-5 text-center" style={{ color: "var(--text-dim)" }}>
+                                    <span
+                                      className="text-xs font-bold w-5 text-center"
+                                      style={{ color: "var(--text-dim)" }}
+                                    >
                                       #{i + 1}
                                     </span>
-                                    <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                                    <span
+                                      className="text-sm font-medium"
+                                      style={{ color: "var(--text)" }}
+                                    >
                                       {comp.name}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-4 text-right">
                                     <div>
-                                      <div className="text-xs font-semibold" style={{ color: "var(--success)" }}>
+                                      <div
+                                        className="text-xs font-semibold"
+                                        style={{ color: "var(--success)" }}
+                                      >
                                         {formatBudget(comp.spend)}/mo
                                       </div>
-                                      <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>est. spend</div>
+                                      <div
+                                        className="text-[10px]"
+                                        style={{ color: "var(--text-dim)" }}
+                                      >
+                                        est. spend
+                                      </div>
                                     </div>
                                     <div>
-                                      <div className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                                      <div
+                                        className="text-xs font-semibold"
+                                        style={{ color: "var(--accent)" }}
+                                      >
                                         {comp.adCount}
                                       </div>
-                                      <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>ads</div>
+                                      <div
+                                        className="text-[10px]"
+                                        style={{ color: "var(--text-dim)" }}
+                                      >
+                                        ads
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -281,7 +462,10 @@ export default function BriefsPage() {
                                     className="w-4 h-4 flex-shrink-0 mt-0.5"
                                     style={{ color: "var(--success)" }}
                                   />
-                                  <span className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                                  <span
+                                    className="text-sm leading-relaxed"
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
                                     {rec}
                                   </span>
                                 </li>

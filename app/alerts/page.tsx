@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { NavBar } from "@/components/nav/NavBar";
-import { AlertTriangle, Bell, Zap, Search } from "lucide-react";
+import { AlertTriangle, Bell, Zap, Search, Loader2, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { AlertCard } from "@/components/alerts/AlertCard";
-import { getAlerts, getAlertCount } from "@/lib/mock-data/index";
 import type { Alert } from "@/lib/types";
+
+const ALERTS_STORAGE_KEY = "ad-intel-alerts";
 
 const FILTERS: Array<{ value: string; label: string }> = [
   { value: "all", label: "All" },
@@ -17,33 +18,130 @@ const FILTERS: Array<{ value: string; label: string }> = [
   { value: "new_keyword", label: "New Keyword" },
 ];
 
+function loadAlerts(): Alert[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ALERTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAlerts(alerts: Alert[]): void {
+  localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts));
+}
+
 export default function AlertsPage() {
-  const allAlerts = getAlerts();
-  const { total, unread, critical } = getAlertCount();
+  const [allAlerts, setAllAlerts] = useState<Alert[]>([]);
   const [filter, setFilter] = useState("all");
-  const [readState, setReadState] = useState<Set<string>>(
-    new Set(allAlerts.filter((a) => a.isRead).map((a) => a.id))
-  );
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAllAlerts(loadAlerts());
+  }, []);
+
+  const generateAlerts = useCallback(async () => {
+    setGenerating(true);
+    setError(null);
+
+    try {
+      // Get tracked competitors from localStorage
+      const raw = localStorage.getItem("ad-intel-custom-competitors");
+      const competitors = raw ? JSON.parse(raw) : [];
+
+      if (competitors.length === 0) {
+        setError("No tracked competitors. Go to the Dashboard and scan some domains first.");
+        setGenerating(false);
+        return;
+      }
+
+      // Build competitor data for the API
+      const competitorInputs = competitors
+        .filter((c: Record<string, unknown>) => c.enrichmentStatus === "complete" && c.enrichment)
+        .map((c: Record<string, unknown>) => {
+          const e = c.enrichment as Record<string, unknown>;
+          return {
+            name: c.name,
+            domain: c.domain,
+            techStack: ((e.techStack as Array<{ name: string }>) ?? []).map((t) => t.name),
+            adPixels: ((e.adPixels as Array<{ platform: string; detected: boolean }>) ?? [])
+              .filter((p) => p.detected)
+              .map((p) => p.platform),
+            analytics: ((e.analytics as Array<{ name: string; detected: boolean }>) ?? [])
+              .filter((a) => a.detected)
+              .map((a) => a.name),
+            performanceScore: (e.pageSpeed as Record<string, unknown>)?.performanceScore,
+            siteAge: (e.siteAge as Record<string, unknown>)?.firstSeen
+              ? String((e.siteAge as Record<string, unknown>).firstSeen).substring(0, 4)
+              : undefined,
+          };
+        });
+
+      if (competitorInputs.length === 0) {
+        setError("No enriched competitors found. Scan your tracked domains first.");
+        setGenerating(false);
+        return;
+      }
+
+      const res = await fetch("/api/alerts/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitors: competitorInputs }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Alert generation failed");
+      }
+
+      const data = await res.json();
+      const newAlerts: Alert[] = (data.alerts ?? []).map(
+        (a: Record<string, unknown>) => ({
+          ...a,
+          competitorId: a.competitorDomain,
+        })
+      );
+
+      // Merge with existing alerts (don't duplicate)
+      const existing = loadAlerts();
+      const existingTitles = new Set(existing.map((a) => a.title));
+      const unique = newAlerts.filter((a) => !existingTitles.has(a.title));
+      const merged = [...unique, ...existing];
+
+      saveAlerts(merged);
+      setAllAlerts(merged);
+    } catch {
+      setError("Failed to generate alerts. Try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
 
   function markRead(id: string) {
-    setReadState((prev) => new Set([...prev, id]));
+    const updated = allAlerts.map((a) =>
+      a.id === id ? { ...a, isRead: true } : a
+    );
+    setAllAlerts(updated);
+    saveAlerts(updated);
   }
 
-  const enrichedAlerts: Alert[] = useMemo(
-    () =>
-      allAlerts.map((a) => ({ ...a, isRead: readState.has(a.id) })),
-    [allAlerts, readState]
-  );
+  function markAllRead() {
+    const updated = allAlerts.map((a) => ({ ...a, isRead: true }));
+    setAllAlerts(updated);
+    saveAlerts(updated);
+  }
 
   const filtered = useMemo(() => {
-    return enrichedAlerts.filter((a) => {
+    return allAlerts.filter((a) => {
       if (filter === "unread") return !a.isRead;
       if (filter === "all") return true;
       return a.type === filter;
     });
-  }, [enrichedAlerts, filter]);
+  }, [allAlerts, filter]);
 
-  const unreadCount = enrichedAlerts.filter((a) => !a.isRead).length;
+  const unreadCount = allAlerts.filter((a) => !a.isRead).length;
+  const criticalCount = allAlerts.filter((a) => a.severity === "critical").length;
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
@@ -56,26 +154,79 @@ export default function AlertsPage() {
               Alert Center
             </h1>
             <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              Intelligence updates from your tracked competitors
+              Intelligence updates generated from your tracked competitors
             </p>
           </div>
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setReadState(new Set(allAlerts.map((a) => a.id)))}
-              className="text-sm font-medium transition-colors"
-              style={{ color: "var(--accent)" }}
+              onClick={generateAlerts}
+              disabled={generating}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg, #3B82F6, #6366F1)",
+                color: "white",
+              }}
             >
-              Mark all as read
+              {generating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              {generating ? "Analyzing..." : "Scan for Alerts"}
             </button>
-          )}
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-sm font-medium transition-colors"
+                style={{ color: "var(--accent)" }}
+              >
+                Mark all read
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            className="p-4 rounded-lg text-sm"
+            style={{
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              color: "#EF4444",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Total Alerts", value: total, icon: Bell, color: "var(--accent)", bg: "var(--accent-soft)", border: "rgba(59,130,246,0.2)" },
-            { label: "Unread", value: unreadCount, icon: Search, color: "var(--warning)", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" },
-            { label: "Critical", value: critical, icon: Zap, color: "var(--danger)", bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.2)" },
+            {
+              label: "Total Alerts",
+              value: allAlerts.length,
+              icon: Bell,
+              color: "var(--accent)",
+              bg: "var(--accent-soft)",
+              border: "rgba(59,130,246,0.2)",
+            },
+            {
+              label: "Unread",
+              value: unreadCount,
+              icon: Search,
+              color: "var(--warning)",
+              bg: "rgba(245,158,11,0.1)",
+              border: "rgba(245,158,11,0.2)",
+            },
+            {
+              label: "Critical",
+              value: criticalCount,
+              icon: Zap,
+              color: "var(--danger)",
+              bg: "rgba(239,68,68,0.1)",
+              border: "rgba(239,68,68,0.2)",
+            },
           ].map(({ label, value, icon: Icon, color, bg, border }) => (
             <div key={label} className="card p-4">
               <div className="flex items-center gap-3">
@@ -86,8 +237,12 @@ export default function AlertsPage() {
                   <Icon className="w-4 h-4" style={{ color }} />
                 </div>
                 <div>
-                  <div className="text-xl font-bold" style={{ color }}>{value}</div>
-                  <div className="text-xs" style={{ color: "var(--text-dim)" }}>{label}</div>
+                  <div className="text-xl font-bold" style={{ color }}>
+                    {value}
+                  </div>
+                  <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                    {label}
+                  </div>
                 </div>
               </div>
             </div>
@@ -102,9 +257,17 @@ export default function AlertsPage() {
               onClick={() => setFilter(value)}
               className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
               style={{
-                background: filter === value ? "var(--accent-soft)" : "var(--surface)",
-                color: filter === value ? "var(--accent)" : "var(--text-secondary)",
-                border: `1px solid ${filter === value ? "rgba(59,130,246,0.3)" : "var(--border)"}`,
+                background:
+                  filter === value ? "var(--accent-soft)" : "var(--surface)",
+                color:
+                  filter === value
+                    ? "var(--accent)"
+                    : "var(--text-secondary)",
+                border: `1px solid ${
+                  filter === value
+                    ? "rgba(59,130,246,0.3)"
+                    : "var(--border)"
+                }`,
               }}
             >
               {label}
@@ -121,7 +284,21 @@ export default function AlertsPage() {
         </div>
 
         {/* Alert list */}
-        {filtered.length === 0 ? (
+        {allAlerts.length === 0 ? (
+          <div
+            className="text-center py-16 flex flex-col items-center gap-3"
+            style={{ color: "var(--text-dim)" }}
+          >
+            <AlertTriangle className="w-10 h-10 opacity-30" />
+            <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+              No alerts yet
+            </p>
+            <p className="text-xs">
+              Track competitors on the Dashboard, then click &quot;Scan for
+              Alerts&quot; to generate intelligence alerts.
+            </p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div
             className="text-center py-16 flex flex-col items-center gap-3"
             style={{ color: "var(--text-dim)" }}
