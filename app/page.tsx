@@ -182,6 +182,50 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Example result -- show the magic */}
+        <section className="px-4 sm:px-6 pb-16 max-w-3xl mx-auto">
+          <div
+            className="rounded-xl p-6"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+          >
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "var(--accent)" }}>
+              Example: Search &quot;Notion&quot;
+            </p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text)" }}>Notion</h3>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>notion.so -- Productivity / SaaS</span>
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-bold" style={{ color: "var(--success)" }}>6 sources found</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center text-xs mb-4">
+              {[
+                { label: "Ad Platforms", value: "Meta, Google", color: "var(--accent)" },
+                { label: "Monthly Traffic", value: "142M", color: "var(--accent-violet)" },
+                { label: "Tech Stack", value: "React, Next.js", color: "var(--success)" },
+              ].map((s) => (
+                <div key={s.label} className="p-3 rounded-lg" style={{ background: "var(--bg)" }}>
+                  <div className="font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
+                  <div style={{ color: "var(--text-secondary)" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {["Google Analytics", "Segment", "Intercom", "Stripe", "Cloudflare"].map((tech) => (
+                <span
+                  key={tech}
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid rgba(59,130,246,0.15)" }}
+                >
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Feature cards */}
         <section className="px-4 sm:px-6 pb-24 max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
