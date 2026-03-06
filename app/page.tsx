@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Eye, Search, Brain, ArrowRight, Shield } from "lucide-react";
+import { LiveSearch } from "@/components/landing/LiveSearch";
 
 export default function Home() {
   const stats = [
@@ -125,35 +126,12 @@ export default function Home() {
               className="text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              Search any company to instantly access their real ads on Meta, Google,
-              SpyFu, SimilarWeb, and more. Track competitors and build your intelligence file.
+              Run intel on any company. See their ad pixels, tech stack, analytics tools,
+              and performance scores -- from real data, not estimates.
             </p>
 
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
-                style={{
-                  background: "linear-gradient(135deg, #3B82F6, #6366F1)",
-                  boxShadow: "0 0 20px rgba(59, 130, 246, 0.3)",
-                }}
-              >
-                Launch Dashboard
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-[var(--surface-hover)]"
-                style={{
-                  color: "var(--text-secondary)",
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                }}
-              >
-                View Demo Data
-              </Link>
-            </div>
+            {/* Live Search */}
+            <LiveSearch />
 
             {/* Stats row */}
             <div
@@ -177,50 +155,6 @@ export default function Home() {
                     {label}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Example result -- show the magic */}
-        <section className="px-4 sm:px-6 pb-16 max-w-3xl mx-auto">
-          <div
-            className="rounded-xl p-6"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-          >
-            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "var(--accent)" }}>
-              Example: Search &quot;Notion&quot;
-            </p>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text)" }}>Notion</h3>
-                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>notion.so -- Productivity / SaaS</span>
-              </div>
-              <div className="text-right">
-                <div className="text-xs font-bold" style={{ color: "var(--success)" }}>6 sources found</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center text-xs mb-4">
-              {[
-                { label: "Ad Platforms", value: "Meta, Google", color: "var(--accent)" },
-                { label: "Monthly Traffic", value: "142M", color: "var(--accent-violet)" },
-                { label: "Tech Stack", value: "React, Next.js", color: "var(--success)" },
-              ].map((s) => (
-                <div key={s.label} className="p-3 rounded-lg" style={{ background: "var(--bg)" }}>
-                  <div className="font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
-                  <div style={{ color: "var(--text-secondary)" }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {["Google Analytics", "Segment", "Intercom", "Stripe", "Cloudflare"].map((tech) => (
-                <span
-                  key={tech}
-                  className="text-xs px-2 py-1 rounded"
-                  style={{ background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid rgba(59,130,246,0.15)" }}
-                >
-                  {tech}
-                </span>
               ))}
             </div>
           </div>
