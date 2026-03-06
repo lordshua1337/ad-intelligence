@@ -1,11 +1,21 @@
 import type { Competitor } from "./types";
 import type { EnrichmentData } from "./enrichment-types";
+import { getSeedCompetitors } from "./seed-data";
 
 const STORAGE_KEY = "ad-intel-custom-competitors";
+const SEEDED_KEY = "ad-intel-seeded";
 
 export function getCustomCompetitors(): Competitor[] {
   if (typeof window === "undefined") return [];
   try {
+    // Seed demo data on first visit
+    if (!localStorage.getItem(SEEDED_KEY)) {
+      const seeds = getSeedCompetitors();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeds));
+      localStorage.setItem(SEEDED_KEY, "true");
+      return seeds;
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as Competitor[];

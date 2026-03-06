@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import {
   X, ExternalLink, Plus, Trash2, StickyNote, Globe, Code, Megaphone,
-  BarChart3, Shield, Clock, Users, Zap, ArrowUpRight,
+  BarChart3, Shield, Clock, Users, Zap, ArrowUpRight, Brain, Loader2,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { INTEL_SOURCES, getFaviconUrl, getGoogleTrendsUrl } from "@/lib/intelligence-sources";
 import { getNotesForCompetitor, addNote, removeNote } from "@/lib/competitor-notes";
+import { DEEP_DIVE_ANALYSES } from "@/lib/seed-data";
 import type { CompetitorNote } from "@/lib/competitor-notes";
 import type { Competitor } from "@/lib/types";
 
@@ -19,6 +21,9 @@ interface CompetitorDetailModalProps {
 export function CompetitorDetailModal({ competitor, onClose }: CompetitorDetailModalProps) {
   const [notes, setNotes] = useState<CompetitorNote[]>([]);
   const [newNote, setNewNote] = useState("");
+  const [deepDive, setDeepDive] = useState<string | null>(null);
+  const [deepDiveLoading, setDeepDiveLoading] = useState(false);
+  const [deepDiveExpanded, setDeepDiveExpanded] = useState(false);
 
   useEffect(() => {
     if (competitor) {
@@ -292,6 +297,107 @@ export function CompetitorDetailModal({ competitor, onClose }: CompetitorDetailM
                       </span>
                     </div>
                   </div>
+                </section>
+              )}
+
+              {/* Deep Dive Analysis */}
+              {e && (
+                <section>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: "var(--text)" }}>
+                    <Brain className="w-4 h-4" style={{ color: "#8B5CF6" }} />
+                    AI Deep Dive Analysis
+                  </h3>
+                  {!deepDive && !deepDiveLoading && (
+                    <button
+                      onClick={() => {
+                        setDeepDiveLoading(true);
+                        // Check pre-cached results first, then simulate AI delay
+                        const cached = competitor ? DEEP_DIVE_ANALYSES[competitor.domain] : undefined;
+                        setTimeout(() => {
+                          if (cached) {
+                            setDeepDive(cached);
+                          } else {
+                            // Generate basic analysis from enrichment data
+                            const pixelCount = activePixels.length;
+                            const techNames = e.techStack.map(t => t.name).join(", ");
+                            const perf = e.pageSpeed?.performanceScore ?? "N/A";
+                            setDeepDive(
+                              `## ${competitor?.name} Analysis\n\n` +
+                              `### Ad Strategy\n${pixelCount} ad platform${pixelCount !== 1 ? "s" : ""} detected (${activePixels.map(p => p.platform).join(", ") || "none"}). ` +
+                              `${pixelCount >= 3 ? "Heavy multi-channel advertiser -- likely spending $50K+/month on paid acquisition." : pixelCount >= 1 ? "Moderate ad presence. Focused on key channels." : "Minimal ad footprint -- likely relying on organic/viral growth."}\n\n` +
+                              `### Tech Stack\nRunning ${techNames || "unknown stack"}. ` +
+                              `${typeof perf === "number" && perf >= 80 ? "Strong performance indicates engineering investment." : typeof perf === "number" ? "Performance could be improved -- potential competitive advantage if you're faster." : ""}\n\n` +
+                              `### Recommended Actions\n1. Monitor their ad keywords and creative\n2. Analyze their landing pages for conversion patterns\n3. Track their product changelog for strategic shifts\n\n` +
+                              `*Connect your Anthropic API key for deeper Claude-powered analysis.*`
+                            );
+                          }
+                          setDeepDiveLoading(false);
+                          setDeepDiveExpanded(true);
+                        }, 1500);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 p-4 rounded-xl transition-all hover:scale-[1.01]"
+                      style={{
+                        background: "linear-gradient(135deg, rgba(139,92,246,0.1), rgba(59,130,246,0.1))",
+                        border: "1px solid rgba(139,92,246,0.25)",
+                        color: "#8B5CF6",
+                      }}
+                    >
+                      <Brain className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Run Deep Dive Analysis</span>
+                    </button>
+                  )}
+                  {deepDiveLoading && (
+                    <div className="flex items-center justify-center gap-3 p-6 rounded-xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#8B5CF6" }} />
+                      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                        Analyzing {competitor?.name}'s competitive landscape...
+                      </span>
+                    </div>
+                  )}
+                  {deepDive && !deepDiveLoading && (
+                    <div className="rounded-xl overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <button
+                        onClick={() => setDeepDiveExpanded(!deepDiveExpanded)}
+                        className="w-full flex items-center justify-between p-4"
+                        style={{ borderBottom: deepDiveExpanded ? "1px solid var(--border)" : "none" }}
+                      >
+                        <span className="text-sm font-semibold flex items-center gap-2" style={{ color: "#8B5CF6" }}>
+                          <Brain className="w-4 h-4" />
+                          Analysis Ready
+                        </span>
+                        {deepDiveExpanded ? (
+                          <ChevronUp className="w-4 h-4" style={{ color: "var(--text-dim)" }} />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" style={{ color: "var(--text-dim)" }} />
+                        )}
+                      </button>
+                      {deepDiveExpanded && (
+                        <div className="p-4">
+                          <div className="prose prose-sm prose-invert max-w-none">
+                            {deepDive.split("\n").map((line, i) => {
+                              if (line.startsWith("## ")) {
+                                return <h2 key={i} className="text-base font-bold mt-0 mb-2" style={{ color: "var(--text)" }}>{line.replace("## ", "")}</h2>;
+                              }
+                              if (line.startsWith("### ")) {
+                                return <h3 key={i} className="text-sm font-semibold mt-4 mb-1" style={{ color: "#8B5CF6" }}>{line.replace("### ", "")}</h3>;
+                              }
+                              if (line.startsWith("**")) {
+                                return <p key={i} className="text-xs leading-relaxed mb-1" style={{ color: "var(--text)" }}>{line.replace(/\*\*/g, "")}</p>;
+                              }
+                              if (line.match(/^\d\./)) {
+                                return <p key={i} className="text-xs leading-relaxed ml-2 mb-0.5" style={{ color: "var(--text-secondary)" }}>{line}</p>;
+                              }
+                              if (line.startsWith("*")) {
+                                return <p key={i} className="text-[10px] italic mt-3" style={{ color: "var(--text-dim)" }}>{line.replace(/\*/g, "")}</p>;
+                              }
+                              if (line.trim() === "") return null;
+                              return <p key={i} className="text-xs leading-relaxed mb-1" style={{ color: "var(--text-secondary)" }}>{line}</p>;
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
               )}
 
